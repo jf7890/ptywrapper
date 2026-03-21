@@ -14,6 +14,8 @@ fi
 export HISTCONTROL=
 export HISTIGNORE=
 shopt -s cmdhist lithist
+__cyber_shell_preexec_ready=0
+__cyber_shell_command_active=0
 
 __cyber_shell_write_control() {
   [[ -n "${CYBER_SHELL_CONTROL_FD:-}" ]] || return 0
@@ -26,45 +28,83 @@ __cyber_shell_now() {
   printf '%s' "${__cyber_shell_now_value}"
 }
 
-__cyber_shell_preexec() {
-  local started_at current_cmd
-  started_at="$(__cyber_shell_now)"
-  current_cmd="$(__cyber_shell_last_command)"
-  __cyber_shell_write_control PRE "${started_at}" "${current_cmd}"
-}
-
-__cyber_shell_last_command() {
-  local current_cmd
-  current_cmd="$(builtin fc -ln -0 2>/dev/null)" || current_cmd=""
-  if [[ -n "${current_cmd}" ]]; then
-    printf '%s' "${current_cmd}"
-    return 0
+__cyber_shell_history_line() {
+  local hist_line
+  hist_line="$(builtin history 1 2>/dev/null)" || hist_line=""
+  if [[ "${hist_line}" =~ ^[[:space:]]*[0-9]+[[:space:]](.*)$ ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+  else
+    printf '%s' "${hist_line}"
   fi
-  builtin fc -ln -1
 }
 
-__cyber_shell_postexec() {
+__cyber_shell_should_ignore_debug() {
+  case "${BASH_COMMAND}" in
+    __cyber_shell_debugtrap|\
+    __cyber_shell_prompt_begin|\
+    __cyber_shell_prompt_end|\
+    __cyber_shell_should_ignore_debug|\
+    __cyber_shell_history_line|\
+    __cyber_shell_write_control|\
+    __cyber_shell_now)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+__cyber_shell_debugtrap() {
+  local trap_status started_at current_cmd
+  trap_status=$?
+  if [[ "${__cyber_shell_preexec_ready:-0}" != 1 ]]; then
+    return "${trap_status}"
+  fi
+  if __cyber_shell_should_ignore_debug; then
+    return "${trap_status}"
+  fi
+
+  __cyber_shell_preexec_ready=0
+  __cyber_shell_command_active=1
+  started_at="$(__cyber_shell_now)"
+  current_cmd="$(__cyber_shell_history_line)"
+  __cyber_shell_write_control PRE "${started_at}" "${current_cmd}"
+  return "${trap_status}"
+}
+
+__cyber_shell_prompt_begin() {
   local exit_code finished_at
   exit_code=$?
   finished_at="$(__cyber_shell_now)"
-  __cyber_shell_write_control POST "${finished_at}" "${exit_code}" "${PWD}"
+  if [[ "${__cyber_shell_command_active:-0}" == 1 ]]; then
+    __cyber_shell_write_control POST "${finished_at}" "${exit_code}" "${PWD}"
+    __cyber_shell_command_active=0
+  fi
   return "${exit_code}"
+}
+
+__cyber_shell_prompt_end() {
+  __cyber_shell_preexec_ready=1
+  return 0
 }
 
 __cyber_shell_append_prompt_command() {
   if declare -p PROMPT_COMMAND >/dev/null 2>&1; then
     if declare -p PROMPT_COMMAND 2>/dev/null | grep -q 'declare \-a'; then
-      PROMPT_COMMAND=("__cyber_shell_postexec" "${PROMPT_COMMAND[@]}")
+      PROMPT_COMMAND=(
+        "__cyber_shell_prompt_begin"
+        "${PROMPT_COMMAND[@]}"
+        "__cyber_shell_prompt_end"
+      )
     elif [[ -n "${PROMPT_COMMAND}" ]]; then
-      PROMPT_COMMAND="__cyber_shell_postexec;${PROMPT_COMMAND}"
+      PROMPT_COMMAND="__cyber_shell_prompt_begin;${PROMPT_COMMAND};__cyber_shell_prompt_end"
     else
-      PROMPT_COMMAND="__cyber_shell_postexec"
+      PROMPT_COMMAND="__cyber_shell_prompt_begin;__cyber_shell_prompt_end"
     fi
   else
-    PROMPT_COMMAND="__cyber_shell_postexec"
+    PROMPT_COMMAND="__cyber_shell_prompt_begin;__cyber_shell_prompt_end"
   fi
 }
 
+trap '__cyber_shell_debugtrap' DEBUG
 __cyber_shell_append_prompt_command
-PS0='$(__cyber_shell_preexec)'${PS0:-}
 """

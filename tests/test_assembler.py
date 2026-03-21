@@ -45,6 +45,20 @@ class InteractiveCommandTests(unittest.TestCase):
         self.assertTrue(is_interactive_command("env TERM=xterm less /etc/passwd"))
         self.assertFalse(is_interactive_command("printf 'hello'"))
 
+    def test_strips_ansi_sequences_from_output(self) -> None:
+        assembler = EventAssembler(AppConfig(), "sess-123")
+        assembler.start_command("2026-03-21T08:31:01Z", "ls")
+        assembler.append_output(b"\x1b[01;34msrc\x1b[0m\r\n")
+        event = assembler.finish_command(
+            finished_at="2026-03-21T08:31:03Z",
+            exit_code=0,
+            cwd="/tmp",
+        )
+
+        self.assertIsNotNone(event)
+        assert event is not None
+        self.assertEqual(event.output, "src\n")
+
 
 if __name__ == "__main__":
     unittest.main()

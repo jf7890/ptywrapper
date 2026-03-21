@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shlex
 from dataclasses import dataclass
 
@@ -45,6 +46,10 @@ PREFIX_WRAPPERS = {
     "stdbuf",
     "time",
 }
+
+ANSI_ESCAPE_RE = re.compile(
+    r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]|\][^\x1b\x07]*(?:\x07|\x1b\\))"
+)
 
 
 @dataclass(slots=True)
@@ -104,7 +109,9 @@ class EventAssembler:
             cwd=cwd,
             cmd=current.cmd,
             exit_code=exit_code,
-            output=current.output_buffer.decode("utf-8", errors="replace"),
+            output=_sanitize_output(
+                current.output_buffer.decode("utf-8", errors="replace")
+            ),
             output_truncated=current.truncated,
             started_at=current.started_at,
             finished_at=finished_at,
@@ -162,3 +169,9 @@ def _looks_like_env_assignment(token: str) -> bool:
         return False
     name, _ = token.split("=", 1)
     return name.replace("_", "A").isalnum()
+
+
+def _sanitize_output(value: str) -> str:
+    cleaned = ANSI_ESCAPE_RE.sub("", value)
+    cleaned = cleaned.replace("\r\n", "\n").replace("\r", "\n")
+    return cleaned
