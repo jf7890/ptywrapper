@@ -1,13 +1,13 @@
 # Cyber Shell
 
-`cyber-shell` la local CLI wrapper cho Bash interactive tren Linux/Kali. Tool mo shell that trong PTY, giu lai shell feel cua user, dong thoi capture command/output/exit code/cwd de gui telemetry len endpoint noi bo theo che do fail-open.
+`cyber-shell` is a local CLI wrapper for interactive Bash on Linux/Kali. It runs a real shell inside a PTY, preserves normal terminal behavior, captures command/output/exit code/cwd, and sends telemetry to a configurable HTTP endpoint in fail-open mode.
 
-## Tinh nang v1
+## Features
 
-- Spawn Bash interactive that trong PTY.
-- Relay stdin/stdout theo raw terminal mode, co resize support.
-- Hook `PS0` va `PROMPT_COMMAND` qua control pipe rieng, khong in marker vao terminal.
-- Capture moi command thanh 1 event logic voi:
+- Runs a real interactive Bash session inside a PTY.
+- Relays stdin/stdout in raw terminal mode with resize support.
+- Uses shell hooks over a dedicated control pipe instead of printing markers into the terminal.
+- Captures one logical event per command with:
   - `cmd`
   - `output`
   - `exit_code`
@@ -15,33 +15,80 @@
   - `started_at`
   - `finished_at`
   - `is_interactive`
-- Telemetry async, retry/backoff, timeout va fail-open.
-- Gioi han `max_output_bytes` de tranh gui output vo han.
-- Mock endpoint tich hop de local test.
+- Sends telemetry asynchronously with timeout, retry, and fail-open behavior.
+- Truncates oversized command output with `max_output_bytes`.
+- Includes a built-in mock endpoint and dashboard for local testing.
+- Strips ANSI color/control sequences from telemetry output while keeping the local terminal unchanged.
 
-## Cai dat
+## Install
+
+Assume Python 3 and `pip` are already installed and working normally.
 
 ```bash
 python3 -m pip install .
 ```
 
-Hoac cho dev:
+## Quick Start
+
+The fastest test flow uses two terminals.
+
+Terminal 1: start the mock endpoint
 
 ```bash
-python3 -m pip install -e .
+cyber-shell mock-endpoint --host 0.0.0.0 --port 8080 --api-key replace-me
 ```
 
-## Cau hinh
+Open the dashboard locally:
 
-Mac dinh tool doc file:
+```text
+http://127.0.0.1:8080/
+```
+
+If you are accessing it from another machine:
+
+```text
+http://<server-ip>:8080/
+```
+
+Check that the endpoint is alive:
+
+```bash
+curl -i http://127.0.0.1:8080/health
+```
+
+Terminal 2: start the wrapped shell and point it at the mock endpoint
+
+```bash
+cyber-shell --endpoint-url http://127.0.0.1:8080/api/terminal-events --api-key replace-me
+```
+
+Inside that wrapped shell, run a few commands:
+
+```bash
+whoami
+pwd
+ls -la
+```
+
+To confirm that you are inside the wrapped session:
+
+```bash
+echo $CYBER_SHELL_SESSION_ID
+```
+
+If it prints a value like `sess-...`, you are inside a `cyber-shell` session.
+
+## Configuration
+
+By default, `cyber-shell` reads:
 
 ```text
 ~/.config/cyber-shell/config.yaml
 ```
 
-Tool ho tro format YAML toi gian (key/value, co the co block `metadata:` 1 cap) va env override.
+The config format is intentionally simple YAML with optional environment variable overrides.
 
-File mau:
+Sample config:
 
 ```yaml
 endpoint_url: "http://127.0.0.1:8080/api/terminal-events"
@@ -58,7 +105,13 @@ metadata:
   hostname_group: "kali-lab"
 ```
 
-Env override:
+Print the default template:
+
+```bash
+cyber-shell print-default-config
+```
+
+Supported environment overrides:
 
 - `CYBER_SHELL_CONFIG`
 - `CYBER_SHELL_ENDPOINT_URL`
@@ -73,75 +126,9 @@ Env override:
 - `CYBER_SHELL_TARGET_ID`
 - `CYBER_SHELL_SHELL_PATH`
 
-## Cach chay
+## Manual Endpoint Test
 
-Bat mock endpoint o terminal A:
-
-```bash
-cyber-shell mock-endpoint --host 127.0.0.1 --port 8080
-```
-
-Mo dashboard xem event:
-
-```text
-http://127.0.0.1:8080/
-```
-
-Check nhanh service song:
-
-```bash
-curl -i http://127.0.0.1:8080/health
-```
-
-Mo wrapped shell o terminal B:
-
-```bash
-cyber-shell
-```
-
-Hoac:
-
-```bash
-cyber-shell start --config ~/.config/cyber-shell/config.yaml
-```
-
-Neu muon override bang env trong Bash, phai `export` hoac dat cung dong lenh:
-
-```bash
-export CYBER_SHELL_ENDPOINT_URL=http://127.0.0.1:8080/api/terminal-events
-export CYBER_SHELL_API_KEY=replace-me
-cyber-shell
-```
-
-Hoac:
-
-```bash
-CYBER_SHELL_ENDPOINT_URL=http://127.0.0.1:8080/api/terminal-events \
-CYBER_SHELL_API_KEY=replace-me \
-cyber-shell
-```
-
-Hoac:
-
-```bash
-cyber-shell --endpoint-url http://127.0.0.1:8080/api/terminal-events --api-key replace-me
-```
-
-De xac nhan dang o trong wrapped shell, chay:
-
-```bash
-echo $CYBER_SHELL_SESSION_ID
-```
-
-Neu co gia tri `sess-...` thi ban dang o trong session cua `cyber-shell`.
-
-In file config mau:
-
-```bash
-cyber-shell print-default-config
-```
-
-Kich event thu cong (khong can mo wrapped shell):
+You can test the dashboard without starting the wrapped shell:
 
 ```bash
 curl -i -X POST http://127.0.0.1:8080/api/terminal-events \
@@ -150,14 +137,14 @@ curl -i -X POST http://127.0.0.1:8080/api/terminal-events \
   -d '{"session_id":"s1","seq":1,"cmd":"whoami","cwd":"/home/kali","exit_code":0,"output":"kali","output_truncated":false,"started_at":"2026-03-21T10:00:00Z","finished_at":"2026-03-21T10:00:01Z","is_interactive":false,"hostname":"kali","shell":"bash","user_id":"student-01","lab_id":"lab-01","target_id":"t1","metadata":{}}'
 ```
 
-## Luu y van hanh
+## Notes
 
-- Tool chi chay tren POSIX/Linux. Muc tieu la Kali.
-- V1 khong parse semantic cua `vim`, `top`, `nano`, `less`, `man`; chi dam bao chay duoc va finalize event khi prompt quay lai.
-- Nested shell/remote shell duoc coi la opaque stream.
-- Tool khong capture raw keystrokes toan phien.
+- This tool targets POSIX/Linux, with Kali as the primary environment.
+- V1 does not semantically parse `vim`, `top`, `nano`, `less`, or `man`; it only preserves terminal behavior and finalizes the event when the prompt returns.
+- Nested shells and remote shells are treated as opaque terminal streams.
+- The wrapper does not capture raw keystrokes for the entire session.
 
-## Kiem tra nhanh
+## Dev Checks
 
 ```bash
 python -m unittest discover -s tests -v

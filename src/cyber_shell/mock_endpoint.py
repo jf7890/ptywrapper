@@ -185,12 +185,12 @@ def _build_dashboard_html() -> str:
   <div class="wrap">
     <div class="card">
       <h1>Cyber Shell Mock Endpoint</h1>
-      <p class="hint">Endpoint nhan event qua <code>POST /api/terminal-events</code> (hoac bat ky path POST). Dashboard tu dong refresh 1 giay.</p>
+      <p class="hint">This endpoint accepts events via <code>POST /api/terminal-events</code> or any other POST path. The dashboard refreshes every second.</p>
       <div class="toolbar">
         <span id="count" class="badge">0 events</span>
         <button id="refresh">Refresh now</button>
       </div>
-      <pre id="events">Dang cho events...</pre>
+      <pre id="events">Waiting for events...</pre>
     </div>
   </div>
   <script>
