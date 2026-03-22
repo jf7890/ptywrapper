@@ -9,6 +9,7 @@ from pathlib import Path
 DEFAULT_CONFIG_PATH = Path.home() / ".config" / "cyber-shell" / "config.yaml"
 DEFAULT_STATE_DIR = Path.home() / ".local" / "state" / "cyber-shell"
 PERSISTED_ENV_KEYS = {
+    "CYBER_SHELL_CONFIG",
     "CYBER_SHELL_ENDPOINT_URL",
     "CYBER_SHELL_API_KEY",
     "CYBER_SHELL_TIMEOUT_MS",
@@ -17,6 +18,8 @@ PERSISTED_ENV_KEYS = {
     "CYBER_SHELL_MAX_OUTPUT_BYTES",
     "CYBER_SHELL_QUEUE_SIZE",
     "CYBER_SHELL_SHELL_PATH",
+    "CYBER_SHELL_HOSTNAME",
+    "CYBER_SHELL_STATE_DIR",
 }
 
 

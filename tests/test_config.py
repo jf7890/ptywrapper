@@ -4,6 +4,7 @@ import tempfile
 import textwrap
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from cyber_shell.config import AppConfig, has_runtime_overrides, load_config, persist_config
 
@@ -64,6 +65,8 @@ class ConfigTests(unittest.TestCase):
     def test_has_runtime_overrides_detects_cli_or_env(self) -> None:
         self.assertTrue(has_runtime_overrides({"endpoint_url": "http://127.0.0.1:8080"}))
         self.assertFalse(has_runtime_overrides({}))
+        with patch.dict("os.environ", {"CYBER_SHELL_API_KEY": "secret"}, clear=False):
+            self.assertTrue(has_runtime_overrides({}))
 
 
 if __name__ == "__main__":

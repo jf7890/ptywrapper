@@ -21,6 +21,13 @@ from .models import ShellEvent
 from .rcfile import build_wrapper_rcfile
 from .telemetry import TelemetryClient
 
+CHILD_ENV_EXCLUDE_PREFIXES = ("CYBER_SHELL_",)
+CHILD_ENV_ALLOWLIST = {
+    "CYBER_SHELL_CONTROL_FD",
+    "CYBER_SHELL_SESSION_ID",
+    "CYBER_SHELL_STATE_DIR",
+}
+
 
 class ShellWrapper:
     def __init__(
@@ -154,7 +161,14 @@ class ShellWrapper:
         return process.wait()
 
     def _build_environment(self, control_fd: int) -> dict[str, str]:
-        env = os.environ.copy()
+        env = {
+            key: value
+            for key, value in os.environ.items()
+            if not (
+                key.startswith(CHILD_ENV_EXCLUDE_PREFIXES)
+                and key not in CHILD_ENV_ALLOWLIST
+            )
+        }
         env["CYBER_SHELL_CONTROL_FD"] = str(control_fd)
         env["CYBER_SHELL_SESSION_ID"] = self._session_id
         env["CYBER_SHELL_STATE_DIR"] = str(self._config.state_dir)
