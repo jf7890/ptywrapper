@@ -41,6 +41,8 @@ __cyber_shell_history_line() {
 __cyber_shell_should_ignore_debug() {
   case "${BASH_COMMAND}" in
     __cyber_shell_debugtrap|\
+    __cyber_shell_ensure_prompt_hooks|\
+    __cyber_shell_array_contains|\
     __cyber_shell_prompt_begin|\
     __cyber_shell_prompt_end|\
     __cyber_shell_should_ignore_debug|\
@@ -53,6 +55,40 @@ __cyber_shell_should_ignore_debug() {
   return 1
 }
 
+__cyber_shell_array_contains() {
+  local needle="$1"
+  shift
+  local item
+  for item in "$@"; do
+    if [[ "${item}" == "${needle}" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+__cyber_shell_ensure_prompt_hooks() {
+  if declare -p PROMPT_COMMAND >/dev/null 2>&1; then
+    if declare -p PROMPT_COMMAND 2>/dev/null | grep -q 'declare \-a'; then
+      if ! __cyber_shell_array_contains "__cyber_shell_prompt_begin" "${PROMPT_COMMAND[@]}"; then
+        PROMPT_COMMAND=("__cyber_shell_prompt_begin" "${PROMPT_COMMAND[@]}")
+      fi
+      if ! __cyber_shell_array_contains "__cyber_shell_prompt_end" "${PROMPT_COMMAND[@]}"; then
+        PROMPT_COMMAND+=("__cyber_shell_prompt_end")
+      fi
+    else
+      if [[ "${PROMPT_COMMAND}" != *"__cyber_shell_prompt_begin"* ]]; then
+        PROMPT_COMMAND="__cyber_shell_prompt_begin;${PROMPT_COMMAND}"
+      fi
+      if [[ "${PROMPT_COMMAND}" != *"__cyber_shell_prompt_end"* ]]; then
+        PROMPT_COMMAND="${PROMPT_COMMAND};__cyber_shell_prompt_end"
+      fi
+    fi
+  else
+    PROMPT_COMMAND="__cyber_shell_prompt_begin;__cyber_shell_prompt_end"
+  fi
+}
+
 __cyber_shell_debugtrap() {
   local trap_status started_at current_cmd
   trap_status=$?
@@ -63,6 +99,7 @@ __cyber_shell_debugtrap() {
     return "${trap_status}"
   fi
 
+  __cyber_shell_ensure_prompt_hooks
   __cyber_shell_preexec_ready=0
   __cyber_shell_command_active=1
   started_at="$(__cyber_shell_now)"
@@ -105,6 +142,6 @@ __cyber_shell_append_prompt_command() {
   fi
 }
 
-trap '__cyber_shell_debugtrap' DEBUG
 __cyber_shell_append_prompt_command
+trap '__cyber_shell_debugtrap' DEBUG
 """
