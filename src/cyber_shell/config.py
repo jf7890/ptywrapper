@@ -8,6 +8,16 @@ from pathlib import Path
 
 DEFAULT_CONFIG_PATH = Path.home() / ".config" / "cyber-shell" / "config.yaml"
 DEFAULT_STATE_DIR = Path.home() / ".local" / "state" / "cyber-shell"
+PERSISTED_ENV_KEYS = {
+    "CYBER_SHELL_ENDPOINT_URL",
+    "CYBER_SHELL_API_KEY",
+    "CYBER_SHELL_TIMEOUT_MS",
+    "CYBER_SHELL_RETRY_MAX",
+    "CYBER_SHELL_RETRY_BACKOFF_MS",
+    "CYBER_SHELL_MAX_OUTPUT_BYTES",
+    "CYBER_SHELL_QUEUE_SIZE",
+    "CYBER_SHELL_SHELL_PATH",
+}
 
 
 @dataclass(slots=True)
@@ -79,17 +89,34 @@ def load_config(path: str | Path | None = None) -> AppConfig:
 
 
 def default_config_text() -> str:
-    return """endpoint_url: "http://127.0.0.1:8080/api/terminal-events"
-api_key: "replace-me"
-timeout_ms: 3000
-retry_max: 3
-retry_backoff_ms: 1000
-max_output_bytes: 262144
-queue_size: 256
-shell_path: "/bin/bash"
-metadata:
-  hostname_group: "kali-lab"
-"""
+    return _serialize_config(
+        AppConfig(
+            endpoint_url="http://127.0.0.1:8080/api/terminal-events",
+            api_key="replace-me",
+            timeout_ms=3000,
+            retry_max=3,
+            retry_backoff_ms=1000,
+            max_output_bytes=262144,
+            queue_size=256,
+            shell_path="/bin/bash",
+            metadata={"hostname_group": "kali-lab"},
+        )
+    )
+
+
+def persist_config(config: AppConfig) -> Path:
+    config.config_path.parent.mkdir(parents=True, exist_ok=True)
+    config.config_path.write_text(_serialize_config(config), encoding="utf-8")
+    if os.name == "posix":
+        os.chmod(config.config_path, 0o600)
+    return config.config_path
+
+
+def has_runtime_overrides(cli_args: dict[str, object] | None = None) -> bool:
+    if cli_args:
+        if cli_args.get("endpoint_url") or cli_args.get("api_key"):
+            return True
+    return any(key in os.environ for key in PERSISTED_ENV_KEYS)
 
 
 def _env_or_data(env_name: str, data: dict[str, object], key: str) -> object:
@@ -111,6 +138,33 @@ def _coerce_metadata(value: object) -> dict[str, str]:
     if not isinstance(value, dict):
         return {}
     return {str(key): str(inner) for key, inner in value.items()}
+
+
+def _serialize_config(config: AppConfig) -> str:
+    lines = [
+        f'endpoint_url: {_yaml_string(config.endpoint_url)}'
+        if config.endpoint_url is not None
+        else "endpoint_url: null",
+        f'api_key: {_yaml_string(config.api_key)}'
+        if config.api_key is not None
+        else "api_key: null",
+        f"timeout_ms: {config.timeout_ms}",
+        f"retry_max: {config.retry_max}",
+        f"retry_backoff_ms: {config.retry_backoff_ms}",
+        f"max_output_bytes: {config.max_output_bytes}",
+        f"queue_size: {config.queue_size}",
+        f'shell_path: {_yaml_string(config.shell_path)}',
+    ]
+    if config.metadata:
+        lines.append("metadata:")
+        for key, value in config.metadata.items():
+            lines.append(f"  {key}: {_yaml_string(value)}")
+    return "\n".join(lines) + "\n"
+
+
+def _yaml_string(value: object) -> str:
+    escaped = str(value).replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
 
 
 def _parse_simple_yaml(text: str) -> dict[str, object]:

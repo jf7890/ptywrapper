@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from .config import default_config_text, load_config
+from .config import default_config_text, has_runtime_overrides, load_config, persist_config
 from .logging_utils import configure_logging
 from .mock_endpoint import run_mock_endpoint
 from .telemetry import TelemetryClient
@@ -80,6 +80,17 @@ def main(argv: list[str] | None = None) -> int:
     logger = configure_logging(config.state_dir)
 
     if command == "start":
+        if has_runtime_overrides(
+            {
+                "endpoint_url": getattr(args, "endpoint_url", None),
+                "api_key": getattr(args, "api_key", None),
+            }
+        ):
+            persisted_path = persist_config(config)
+            print(
+                f"cyber-shell: updated config -> {persisted_path}",
+                file=sys.stderr,
+            )
         if config.endpoint_url:
             print(
                 f"cyber-shell: telemetry -> {config.endpoint_url}",

@@ -98,6 +98,15 @@ By default, `cyber-shell` reads:
 
 The config format is intentionally simple YAML with optional environment variable overrides.
 
+Runtime precedence is:
+
+- CLI arguments
+- environment variables
+- config file
+- built-in defaults
+
+When you start the wrapped shell with runtime overrides such as `--endpoint-url`, `--api-key`, or exported `CYBER_SHELL_*` variables, `cyber-shell` writes the effective values back into `~/.config/cyber-shell/config.yaml`. In this project, that file acts as a temporary session cache so later terminals can reuse the same lab settings without retyping them.
+
 Sample config:
 
 ```yaml
