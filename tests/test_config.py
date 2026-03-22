@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import textwrap
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from cyber_shell.config import AppConfig, has_runtime_overrides, load_config, persist_config
+from cyber_shell.config import (
+    AppConfig,
+    PERSISTED_ENV_KEYS,
+    has_runtime_overrides,
+    load_config,
+    persist_config,
+)
 
 
 class ConfigTests(unittest.TestCase):
@@ -27,7 +34,8 @@ class ConfigTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            config = load_config(config_path)
+            with _patched_clean_cyber_shell_env():
+                config = load_config(config_path)
 
         self.assertEqual(
             config.endpoint_url,
@@ -63,10 +71,21 @@ class ConfigTests(unittest.TestCase):
         self.assertIn('hostname_group: "kali-lab"', written)
 
     def test_has_runtime_overrides_detects_cli_or_env(self) -> None:
-        self.assertTrue(has_runtime_overrides({"endpoint_url": "http://127.0.0.1:8080"}))
-        self.assertFalse(has_runtime_overrides({}))
-        with patch.dict("os.environ", {"CYBER_SHELL_API_KEY": "secret"}, clear=False):
-            self.assertTrue(has_runtime_overrides({}))
+        with _patched_clean_cyber_shell_env():
+            self.assertTrue(
+                has_runtime_overrides({"endpoint_url": "http://127.0.0.1:8080"})
+            )
+            self.assertFalse(has_runtime_overrides({}))
+            with patch.dict("os.environ", {"CYBER_SHELL_API_KEY": "secret"}):
+                self.assertTrue(has_runtime_overrides({}))
+
+
+def _patched_clean_cyber_shell_env():
+    return patch.dict(
+        "os.environ",
+        {key: os.environ[key] for key in os.environ if key not in PERSISTED_ENV_KEYS},
+        clear=True,
+    )
 
 
 if __name__ == "__main__":
