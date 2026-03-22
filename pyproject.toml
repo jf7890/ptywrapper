@@ -3,7 +3,7 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cyber-shell"
+name = "cyber-shell-wrapper"
 version = "0.1.0"
 description = "Local PTY shell wrapper for cyber range AI telemetry"
 readme = "README.md"
@@ -15,7 +15,6 @@ authors = [
 classifiers = [
   "Environment :: Console",
   "Intended Audience :: Developers",
-  "License :: Other/Proprietary License",
   "Operating System :: POSIX :: Linux",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",

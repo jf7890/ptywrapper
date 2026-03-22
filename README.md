@@ -27,7 +27,7 @@
 Assume Python 3 and `pip` are already installed and working normally.
 
 ```bash
-python3 -m pip install .
+python3 -m pip install cyber-shell-wrapper
 ```
 
 ## Quick Start
