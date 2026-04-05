@@ -142,6 +142,14 @@ __cyber_shell_append_prompt_command() {
   fi
 }
 
+ask() {
+  if [[ -z "$*" ]]; then
+    echo -e "\033[1;33mUsage: ask <your question>\033[0m"
+    return 1
+  fi
+  cyber-shell ask "$*"
+}
+
 __cyber_shell_append_prompt_command
 trap '__cyber_shell_debugtrap' DEBUG
 """

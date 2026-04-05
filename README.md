@@ -2,6 +2,8 @@
 
 `cyber-shell` is a local CLI wrapper for interactive Bash on Linux/Kali. It runs a real shell inside a PTY, preserves normal terminal behavior, captures command/output/exit code/cwd, and sends telemetry to a configurable HTTP endpoint in fail-open mode.
 
+On Windows, use `cyber-shell ask` from PowerShell for chat and Burp MCP interaction. The PTY shell wrapper mode is Linux/POSIX-only.
+
 `endpoint_url` is the URL of the receiving server. For local testing, that can be the same machine running the mock endpoint. For real deployment, it should point to your backend or AI ingestion server, not to the student machine unless that machine is intentionally hosting the receiver.
 
 ## Features
@@ -88,6 +90,20 @@ echo $CYBER_SHELL_SESSION_ID
 
 If it prints a value like `sess-...`, you are inside a `cyber-shell` session.
 
+## Windows
+
+Use PowerShell as the primary shell on Windows.
+
+`cyber-shell ask` works on Windows without terminal capture. This mode is intended for chat plus local Burp MCP interaction only.
+
+Example:
+
+```powershell
+cyber-shell ask "search Burp history for login"
+```
+
+`cyber-shell start` is not supported on Windows because the PTY wrapper depends on POSIX APIs.
+
 ## Configuration
 
 By default, `cyber-shell` reads:
@@ -133,6 +149,7 @@ Supported environment overrides:
 - `CYBER_SHELL_CONFIG`
 - `CYBER_SHELL_ENDPOINT_URL`
 - `CYBER_SHELL_API_KEY`
+- `CYBER_SHELL_BURP_MCP_URL`
 - `CYBER_SHELL_TIMEOUT_MS`
 - `CYBER_SHELL_RETRY_MAX`
 - `CYBER_SHELL_RETRY_BACKOFF_MS`

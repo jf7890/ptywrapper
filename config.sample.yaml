@@ -1,5 +1,7 @@
 endpoint_url: "http://127.0.0.1:8080/api/terminal-events"
 api_key: "replace-me"
+burp_mcp_url: "http://127.0.0.1:3000"
+chat_timeout_ms: 60000
 timeout_ms: 3000
 retry_max: 3
 retry_backoff_ms: 1000

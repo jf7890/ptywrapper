@@ -25,6 +25,7 @@ class ConfigTests(unittest.TestCase):
                     """
                     endpoint_url: "http://127.0.0.1:8080/api/terminal-events"
                     api_key: "secret"
+                    burp_mcp_url: "http://127.0.0.1:3000"
                     timeout_ms: 1234
                     retry_max: 5
                     metadata:
@@ -42,6 +43,7 @@ class ConfigTests(unittest.TestCase):
             "http://127.0.0.1:8080/api/terminal-events",
         )
         self.assertEqual(config.api_key, "secret")
+        self.assertEqual(config.burp_mcp_url, "http://127.0.0.1:3000")
         self.assertEqual(config.timeout_ms, 1234)
         self.assertEqual(config.retry_max, 5)
         self.assertEqual(config.metadata, {"role": "student"})
@@ -52,6 +54,7 @@ class ConfigTests(unittest.TestCase):
             config = AppConfig(
                 endpoint_url="http://127.0.0.1:8080/api/terminal-events",
                 api_key="replace-me",
+                burp_mcp_url="http://127.0.0.1:3000",
                 timeout_ms=3000,
                 retry_max=3,
                 retry_backoff_ms=1000,
@@ -67,6 +70,7 @@ class ConfigTests(unittest.TestCase):
 
         self.assertIn('endpoint_url: "http://127.0.0.1:8080/api/terminal-events"', written)
         self.assertIn('api_key: "replace-me"', written)
+        self.assertIn('burp_mcp_url: "http://127.0.0.1:3000"', written)
         self.assertIn('shell_path: "/bin/bash"', written)
         self.assertIn('hostname_group: "kali-lab"', written)
 
@@ -74,6 +78,9 @@ class ConfigTests(unittest.TestCase):
         with _patched_clean_cyber_shell_env():
             self.assertTrue(
                 has_runtime_overrides({"endpoint_url": "http://127.0.0.1:8080"})
+            )
+            self.assertTrue(
+                has_runtime_overrides({"burp_mcp_url": "http://127.0.0.1:3000"})
             )
             self.assertFalse(has_runtime_overrides({}))
             with patch.dict("os.environ", {"CYBER_SHELL_API_KEY": "secret"}):

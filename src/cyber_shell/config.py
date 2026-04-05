@@ -12,6 +12,8 @@ PERSISTED_ENV_KEYS = {
     "CYBER_SHELL_CONFIG",
     "CYBER_SHELL_ENDPOINT_URL",
     "CYBER_SHELL_API_KEY",
+    "CYBER_SHELL_BURP_MCP_URL",
+    "CYBER_SHELL_CHAT_TIMEOUT_MS",
     "CYBER_SHELL_TIMEOUT_MS",
     "CYBER_SHELL_RETRY_MAX",
     "CYBER_SHELL_RETRY_BACKOFF_MS",
@@ -27,6 +29,9 @@ PERSISTED_ENV_KEYS = {
 class AppConfig:
     endpoint_url: str | None = None
     api_key: str | None = None
+    burp_mcp_url: str = "http://127.0.0.1:3000"
+    debug: bool = False
+    chat_timeout_ms: int = 60000
     timeout_ms: int = 3000
     retry_max: int = 3
     retry_backoff_ms: int = 1000
@@ -56,6 +61,18 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     config = AppConfig(
         endpoint_url=_env_or_data("CYBER_SHELL_ENDPOINT_URL", data, "endpoint_url"),
         api_key=_env_or_data("CYBER_SHELL_API_KEY", data, "api_key"),
+        burp_mcp_url=str(
+            _env_or_data("CYBER_SHELL_BURP_MCP_URL", data, "burp_mcp_url")
+            or "http://127.0.0.1:3000"
+        ),
+        debug=_coerce_bool(
+            _env_or_data("CYBER_SHELL_DEBUG", data, "debug"),
+            False,
+        ),
+        chat_timeout_ms=_coerce_int(
+            _env_or_data("CYBER_SHELL_CHAT_TIMEOUT_MS", data, "chat_timeout_ms"),
+            60000,
+        ),
         timeout_ms=_coerce_int(
             _env_or_data("CYBER_SHELL_TIMEOUT_MS", data, "timeout_ms"), 3000
         ),
@@ -96,6 +113,9 @@ def default_config_text() -> str:
         AppConfig(
             endpoint_url="http://127.0.0.1:8080/api/terminal-events",
             api_key="replace-me",
+            burp_mcp_url="http://127.0.0.1:3000",
+            debug=False,
+            chat_timeout_ms=60000,
             timeout_ms=3000,
             retry_max=3,
             retry_backoff_ms=1000,
@@ -137,6 +157,17 @@ def _coerce_int(value: object, default: int) -> int:
         return default
 
 
+def _coerce_bool(value: object, default: bool) -> bool:
+    if value in (None, ""):
+        return default
+    lowered = str(value).strip().lower()
+    if lowered in {"1", "true", "yes", "on"}:
+        return True
+    if lowered in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
 def _coerce_metadata(value: object) -> dict[str, str]:
     if not isinstance(value, dict):
         return {}
@@ -151,6 +182,8 @@ def _serialize_config(config: AppConfig) -> str:
         f'api_key: {_yaml_string(config.api_key)}'
         if config.api_key is not None
         else "api_key: null",
+        f'burp_mcp_url: {_yaml_string(config.burp_mcp_url)}',
+        f"chat_timeout_ms: {config.chat_timeout_ms}",
         f"timeout_ms: {config.timeout_ms}",
         f"retry_max: {config.retry_max}",
         f"retry_backoff_ms: {config.retry_backoff_ms}",

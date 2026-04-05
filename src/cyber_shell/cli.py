@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
-from .config import default_config_text, has_runtime_overrides, load_config, persist_config
+from .config import AppConfig, default_config_text, has_runtime_overrides, load_config, persist_config
+from .chat_client import build_debug_printer, build_status_printer, run_chat_turn
 from .logging_utils import configure_logging
 from .mock_endpoint import run_mock_endpoint
+from .repl import run_repl
 from .telemetry import TelemetryClient
 
 
@@ -26,6 +29,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--api-key",
         help="Override telemetry API key for the wrapped shell session.",
     )
+    parser.add_argument(
+        "--burp-mcp-url",
+        help="Override the local Burp Suite MCP HTTP URL.",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable verbose debug output for chat, MCP, and transport flows.",
+    )
 
     subparsers = parser.add_subparsers(dest="command")
 
@@ -42,6 +54,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--api-key",
         help="Override telemetry API key for this session.",
     )
+    start_parser.add_argument(
+        "--burp-mcp-url",
+        help="Override the local Burp Suite MCP HTTP URL for this session.",
+    )
+    start_parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable verbose debug output.",
+    )
 
     mock_parser = subparsers.add_parser(
         "mock-endpoint",
@@ -50,6 +71,37 @@ def build_parser() -> argparse.ArgumentParser:
     mock_parser.add_argument("--host", default="127.0.0.1")
     mock_parser.add_argument("--port", type=int, default=8080)
     mock_parser.add_argument("--api-key")
+
+    ask_parser = subparsers.add_parser(
+        "ask",
+        help="Ask the backend AI to analyze terminal telemetry and local Burp MCP data.",
+    )
+    ask_parser.add_argument("prompt", help="Prompt to send to the backend AI chat.")
+    ask_parser.add_argument(
+        "--burp-mcp-url",
+        help="Override the local Burp Suite MCP HTTP URL for this request.",
+    )
+    ask_parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable verbose debug output.",
+    )
+
+    repl_parser = subparsers.add_parser(
+        "repl",
+        help="Start an interactive AI chat session (no shell wrapping).",
+    )
+    repl_parser.add_argument("--endpoint-url", help="Override telemetry endpoint.")
+    repl_parser.add_argument("--api-key", help="Override telemetry API key.")
+    repl_parser.add_argument(
+        "--burp-mcp-url",
+        help="Override the local Burp Suite MCP HTTP URL for this session.",
+    )
+    repl_parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable verbose debug output.",
+    )
 
     subparsers.add_parser(
         "print-default-config",
@@ -77,13 +129,34 @@ def main(argv: list[str] | None = None) -> int:
         config.endpoint_url = args.endpoint_url
     if getattr(args, "api_key", None):
         config.api_key = args.api_key
-    logger = configure_logging(config.state_dir)
+    if getattr(args, "burp_mcp_url", None):
+        config.burp_mcp_url = args.burp_mcp_url
+    if getattr(args, "debug", False):
+        config.debug = True
+    logger = configure_logging(config.state_dir, debug=config.debug)
+
+    if command == "ask":
+        return _run_ask(args.prompt, config)
+
+    if command == "repl":
+        telemetry = TelemetryClient(config, logger)
+        try:
+            return run_repl(config, telemetry, logger)
+        finally:
+            telemetry.close()
 
     if command == "start":
+        if os.name == "nt":
+            print(
+                "cyber-shell: start is only supported on POSIX/Linux. On Windows, use PowerShell and run `cyber-shell ask \"...\"` for chat and Burp MCP interaction.",
+                file=sys.stderr,
+            )
+            return 1
         if has_runtime_overrides(
             {
                 "endpoint_url": getattr(args, "endpoint_url", None),
                 "api_key": getattr(args, "api_key", None),
+                "burp_mcp_url": getattr(args, "burp_mcp_url", None),
             }
         ):
             persisted_path = persist_config(config)
@@ -108,6 +181,13 @@ def main(argv: list[str] | None = None) -> int:
                 "export CYBER_SHELL_API_KEY if the endpoint requires auth",
                 file=sys.stderr,
             )
+        if config.burp_mcp_url:
+            print(
+                f"cyber-shell: burp mcp -> {config.burp_mcp_url}",
+                file=sys.stderr,
+            )
+        if config.debug:
+            print("cyber-shell: debug -> enabled", file=sys.stderr)
         from .shell_wrapper import ShellWrapper
 
         telemetry = TelemetryClient(config, logger)
@@ -119,6 +199,35 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.print_help()
     return 1
+
+
+def _run_ask(prompt: str, config: AppConfig) -> int:
+    session_id = os.environ.get("CYBER_SHELL_SESSION_ID", "").strip()
+    if not session_id and os.name != "nt":
+        print(
+            "cyber-shell: no active wrapped shell session detected; continuing without terminal history context",
+            file=sys.stderr,
+        )
+
+    try:
+        if config.debug:
+            print("cyber-shell: debug -> enabled", file=sys.stderr)
+        response = run_chat_turn(
+            config,
+            message=prompt,
+            session_id=session_id or None,
+            status_callback=build_status_printer(),
+            debug_callback=build_debug_printer(config.debug),
+        )
+    except RuntimeError as exc:
+        print(f"cyber-shell: {exc}", file=sys.stderr)
+        return 1
+
+    answer = str(response.get("answer") or "").rstrip("\n")
+    if not answer and response.get("status") != "completed":
+        print("cyber-shell: backend returned no answer", file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

@@ -5,12 +5,13 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 
-def configure_logging(state_dir: Path) -> logging.Logger:
+def configure_logging(state_dir: Path, debug: bool = False) -> logging.Logger:
     logger = logging.getLogger("cyber-shell")
     if logger.handlers:
+        logger.setLevel(logging.DEBUG if debug else logging.INFO)
         return logger
 
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG if debug else logging.INFO)
     handler = RotatingFileHandler(
         state_dir / "cyber-shell.log",
         maxBytes=1_000_000,
