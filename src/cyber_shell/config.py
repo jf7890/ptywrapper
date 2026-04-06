@@ -137,7 +137,11 @@ def persist_config(config: AppConfig) -> Path:
 
 def has_runtime_overrides(cli_args: dict[str, object] | None = None) -> bool:
     if cli_args:
-        if cli_args.get("endpoint_url") or cli_args.get("api_key"):
+        if (
+            cli_args.get("endpoint_url")
+            or cli_args.get("api_key")
+            or cli_args.get("burp_mcp_url")
+        ):
             return True
     return any(key in os.environ for key in PERSISTED_ENV_KEYS)
 
